@@ -1,0 +1,6 @@
+# Optional dependencies for PDF Translator
+# Only install these if you want to use OpenAI API
+
+# For OpenAI translation service
+openai>=1.0.0
+
