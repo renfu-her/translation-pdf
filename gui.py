@@ -226,38 +226,40 @@ class PDFTranslatorGUI(QMainWindow):
         service_layout = QHBoxLayout()
         service_layout.addWidget(QLabel("翻譯服務:"))
         self.service_combo = QComboBox()
-        self.service_combo.addItems(["Google Translate", "OpenAI", "LocalAI"])
+        self.service_combo.addItems(["Free ChatGPT API", "Google Translate", "OpenAI", "LocalAI"])
         self.service_combo.currentTextChanged.connect(self.on_service_changed)
         service_layout.addWidget(self.service_combo)
         service_layout.addStretch()
         settings_layout.addLayout(service_layout)
         
-        # API Key (for OpenAI/LocalAI)
+        # API Key (for OpenAI/LocalAI/FreeGPT)
         self.api_key_layout = QHBoxLayout()
         self.api_key_layout.addWidget(QLabel("API Key:"))
         self.api_key_edit = QLineEdit()
-        self.api_key_edit.setPlaceholderText("輸入 API 密鑰（OpenAI/LocalAI 需要）")
+        self.api_key_edit.setPlaceholderText("輸入 API 密鑰（FreeGPT/OpenAI/LocalAI 需要）")
         self.api_key_edit.setEchoMode(QLineEdit.Password)
         self.api_key_layout.addWidget(self.api_key_edit)
-        self.api_key_layout.setEnabled(False)  # Disabled by default (Google Translate)
+        self.api_key_layout.setEnabled(True)  # Enabled for FreeGPT (default)
         settings_layout.addLayout(self.api_key_layout)
         
-        # Base URL (for LocalAI)
+        # Base URL (for LocalAI/FreeGPT)
         self.base_url_layout = QHBoxLayout()
         self.base_url_layout.addWidget(QLabel("Base URL:"))
         self.base_url_edit = QLineEdit()
-        self.base_url_edit.setPlaceholderText("例如: http://localhost:8080/v1")
+        self.base_url_edit.setPlaceholderText("例如: https://free.v36.cm/v1/")
+        self.base_url_edit.setText("https://free.v36.cm/v1/")  # Default for FreeGPT
         self.base_url_layout.addWidget(self.base_url_edit)
-        self.base_url_layout.setEnabled(False)  # Disabled by default
+        self.base_url_layout.setEnabled(True)  # Enabled for FreeGPT (default)
         settings_layout.addLayout(self.base_url_layout)
         
-        # Model name (for OpenAI/LocalAI)
+        # Model name (for OpenAI/LocalAI/FreeGPT)
         self.model_layout = QHBoxLayout()
         self.model_layout.addWidget(QLabel("模型名稱:"))
         self.model_edit = QLineEdit()
-        self.model_edit.setPlaceholderText("例如: gpt-3.5-turbo, mistral-7b-instruct")
+        self.model_edit.setPlaceholderText("例如: gpt-4o-mini")
+        self.model_edit.setText("gpt-4o-mini")  # Default for FreeGPT
         self.model_layout.addWidget(self.model_edit)
-        self.model_layout.setEnabled(False)  # Disabled by default
+        self.model_layout.setEnabled(True)  # Enabled for FreeGPT (default)
         settings_layout.addLayout(self.model_layout)
         
         # Options
@@ -330,15 +332,31 @@ class PDFTranslatorGUI(QMainWindow):
         """Handle translation service selection change."""
         is_openai = text == "OpenAI"
         is_localai = text == "LocalAI"
+        is_freegpt = text == "Free ChatGPT API"
+        is_google = text == "Google Translate"
         
         # Enable/disable API key field
-        self.api_key_layout.setEnabled(is_openai or is_localai)
+        self.api_key_layout.setEnabled(is_openai or is_localai or is_freegpt)
         
-        # Enable/disable base URL field (only for LocalAI)
-        self.base_url_layout.setEnabled(is_localai)
+        # Enable/disable base URL field (for LocalAI and FreeGPT)
+        self.base_url_layout.setEnabled(is_localai or is_freegpt)
         
         # Enable/disable model field
-        self.model_layout.setEnabled(is_openai or is_localai)
+        self.model_layout.setEnabled(is_openai or is_localai or is_freegpt)
+        
+        # Set default values for FreeGPT
+        if is_freegpt:
+            if not self.base_url_edit.text():
+                self.base_url_edit.setText("https://free.v36.cm/v1/")
+            if not self.model_edit.text():
+                self.model_edit.setText("gpt-4o-mini")
+        elif is_localai:
+            if not self.base_url_edit.text():
+                self.base_url_edit.setText("http://localhost:8080/v1")
+        elif is_google:
+            # Clear API-related fields for Google Translate
+            self.base_url_edit.clear()
+            self.model_edit.clear()
         
     def select_input_file(self):
         """Open file dialog to select input PDF."""
@@ -404,10 +422,13 @@ class PDFTranslatorGUI(QMainWindow):
             return False, "請選擇輸出 PDF 文件路徑"
         
         service = self.service_combo.currentText()
-        if service in ["OpenAI", "LocalAI"]:
+        if service in ["OpenAI", "Free ChatGPT API"]:
             api_key = self.api_key_edit.text().strip()
-            if not api_key and service == "OpenAI":
-                return False, "使用 OpenAI 服務需要提供 API Key"
+            if not api_key:
+                if service == "OpenAI":
+                    return False, "使用 OpenAI 服務需要提供 API Key"
+                elif service == "Free ChatGPT API":
+                    return False, "使用 Free ChatGPT API 服務需要提供 API Key。請前往 https://github.com/popjane/free_chatgpt_api 領取免費 API Key"
         
         return True, ""
     
@@ -426,7 +447,8 @@ class PDFTranslatorGUI(QMainWindow):
         service_map = {
             "Google Translate": "google",
             "OpenAI": "openai",
-            "LocalAI": "localai"
+            "LocalAI": "localai",
+            "Free ChatGPT API": "freegpt"
         }
         service = service_map[self.service_combo.currentText()]
         

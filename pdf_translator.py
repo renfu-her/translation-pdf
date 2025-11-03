@@ -47,8 +47,8 @@ class PDFTranslator:
         Initialize PDF translator.
         
         Args:
-            translator_service: Service to use ('google', 'openai', or 'localai')
-            api_key: API key for OpenAI/LocalAI if using OpenAI-compatible service
+            translator_service: Service to use ('google', 'openai', 'localai', or 'freegpt')
+            api_key: API key for OpenAI/LocalAI/FreeGPT if using OpenAI-compatible service
             auto_detect_language: Whether to automatically detect source language
             base_url: Base URL for LocalAI or custom OpenAI-compatible API endpoint
         """
@@ -63,7 +63,11 @@ class PDFTranslator:
         else:
             self.translator = None
         self.api_key = api_key
-        self.base_url = base_url
+        # Set default base_url for freegpt service
+        if translator_service == "freegpt":
+            self.base_url = base_url or "https://free.v36.cm/v1/"
+        else:
+            self.base_url = base_url
         self.model_name = None  # Will be set via command line if provided
         self.translation_cache = {}  # Cache translations to avoid duplicate API calls
         self.language_cache = {}  # Cache detected languages
@@ -160,8 +164,8 @@ class PDFTranslator:
                     else:
                         result = self.translator.translate(text, dest='zh-TW')
                     translated = result.text
-            elif self.translator_service in ["openai", "localai"]:
-                # Use OpenAI API or LocalAI (OpenAI-compatible)
+            elif self.translator_service in ["openai", "localai", "freegpt"]:
+                # Use OpenAI API, LocalAI, or Free ChatGPT API (OpenAI-compatible)
                 try:
                     from openai import OpenAI
                 except ImportError:
@@ -173,21 +177,25 @@ class PDFTranslator:
                     if self.translator_service == "localai":
                         # LocalAI often doesn't require API key, use placeholder
                         self.api_key = "not-needed"
+                    elif self.translator_service == "freegpt":
+                        raise ValueError("API key is required when using Free ChatGPT API service. Get your free API key from: https://github.com/popjane/free_chatgpt_api")
                     else:
                         raise ValueError("API key is required when using OpenAI service")
                 
-                # Configure client - use base_url if provided (for LocalAI or custom endpoints)
+                # Configure client - use base_url if provided (for LocalAI, FreeGPT, or custom endpoints)
                 if self.base_url:
                     client = OpenAI(api_key=self.api_key, base_url=self.base_url)
                 else:
                     client = OpenAI(api_key=self.api_key)
                 
                 # Use appropriate model name
-                # LocalAI typically uses model names like "gpt-4" or custom model names
                 # Check if model_name attribute exists (set via command line)
                 model_name = getattr(self, 'model_name', None)
                 if not model_name:
-                    if self.translator_service == "openai":
+                    if self.translator_service == "freegpt":
+                        # Default model for Free ChatGPT API
+                        model_name = "gpt-4o-mini"
+                    elif self.translator_service == "openai":
                         model_name = "gpt-3.5-turbo"
                     else:
                         # For LocalAI, try to use a common model name or default
@@ -405,6 +413,21 @@ def main():
     """Main function to run PDF translation."""
     import argparse
     
+    # Try to load configuration from config.py
+    config_service = None
+    config_api_key = None
+    config_base_url = None
+    config_model = None
+    
+    try:
+        import config
+        config_service = getattr(config, 'TRANSLATION_SERVICE', None)
+        config_api_key = getattr(config, 'OPENAI_API_KEY', None)
+        config_base_url = getattr(config, 'BASE_URL', None)
+        config_model = getattr(config, 'MODEL_NAME', None)
+    except ImportError:
+        pass  # config.py not found, use defaults
+    
     parser = argparse.ArgumentParser(
         description="Translate PDF to Traditional Chinese while preserving formatting"
     )
@@ -419,23 +442,23 @@ def main():
     )
     parser.add_argument(
         "--service",
-        choices=["google", "openai", "localai"],
-        default="google",
-        help="Translation service to use (default: google)"
+        choices=["google", "openai", "localai", "freegpt"],
+        default=config_service or "freegpt",
+        help="Translation service to use (default: freegpt - Free ChatGPT API)"
     )
     parser.add_argument(
         "--api-key",
-        help="API key for OpenAI/LocalAI (if using OpenAI/LocalAI service)",
+        help="API key for OpenAI/LocalAI/FreeGPT (if using OpenAI-compatible service). For FreeGPT, get free key from: https://github.com/popjane/free_chatgpt_api",
         default=None
     )
     parser.add_argument(
         "--base-url",
-        help="Base URL for LocalAI or custom OpenAI-compatible API endpoint (e.g., http://localhost:8080/v1)",
+        help="Base URL for LocalAI or custom OpenAI-compatible API endpoint (e.g., http://localhost:8080/v1). For FreeGPT, default is https://free.v36.cm/v1/",
         default=None
     )
     parser.add_argument(
         "--model",
-        help="Model name to use (for LocalAI/OpenAI, e.g., 'mistral-7b-instruct', 'gpt-3.5-turbo')",
+        help="Model name to use (for LocalAI/OpenAI/FreeGPT, e.g., 'gpt-4o-mini', 'gpt-3.5-turbo-0125', 'mistral-7b-instruct', 'gpt-3.5-turbo'). Default for FreeGPT: gpt-4o-mini",
         default=None
     )
     parser.add_argument(
@@ -451,6 +474,13 @@ def main():
     
     args = parser.parse_args()
     
+    # Use config.py values if command line arguments are not provided
+    # Command line arguments take precedence over config.py
+    service = args.service
+    api_key = args.api_key or config_api_key
+    base_url = args.base_url or config_base_url
+    model = args.model or config_model
+    
     # Set output path
     if args.output:
         output_path = args.output
@@ -460,15 +490,15 @@ def main():
     
     # Initialize translator
     translator = PDFTranslator(
-        translator_service=args.service,
-        api_key=args.api_key,
+        translator_service=service,
+        api_key=api_key,
         auto_detect_language=not args.no_auto_detect,
-        base_url=args.base_url
+        base_url=base_url
     )
     
     # Set model name if provided
-    if args.model:
-        translator.model_name = args.model
+    if model:
+        translator.model_name = model
     
     # Translate PDF
     try:
