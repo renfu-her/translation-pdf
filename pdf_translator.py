@@ -42,14 +42,15 @@ class PDFTranslator:
     """Translates PDF documents to Traditional Chinese while preserving formatting."""
     
     def __init__(self, translator_service: str = "google", api_key: Optional[str] = None, 
-                 auto_detect_language: bool = True):
+                 auto_detect_language: bool = True, base_url: Optional[str] = None):
         """
         Initialize PDF translator.
         
         Args:
-            translator_service: Service to use ('google' or 'openai')
-            api_key: API key for OpenAI if using OpenAI service
+            translator_service: Service to use ('google', 'openai', or 'localai')
+            api_key: API key for OpenAI/LocalAI if using OpenAI-compatible service
             auto_detect_language: Whether to automatically detect source language
+            base_url: Base URL for LocalAI or custom OpenAI-compatible API endpoint
         """
         self.translator_service = translator_service
         self.auto_detect_language = auto_detect_language and USE_LANGDETECT
@@ -62,6 +63,8 @@ class PDFTranslator:
         else:
             self.translator = None
         self.api_key = api_key
+        self.base_url = base_url
+        self.model_name = None  # Will be set via command line if provided
         self.translation_cache = {}  # Cache translations to avoid duplicate API calls
         self.language_cache = {}  # Cache detected languages
         
@@ -157,19 +160,41 @@ class PDFTranslator:
                     else:
                         result = self.translator.translate(text, dest='zh-TW')
                     translated = result.text
-            elif self.translator_service == "openai":
-                # Use OpenAI API
+            elif self.translator_service in ["openai", "localai"]:
+                # Use OpenAI API or LocalAI (OpenAI-compatible)
                 try:
                     from openai import OpenAI
                 except ImportError:
                     raise ImportError(
                         "OpenAI package is not installed. Install it with: pip install openai"
                     )
+                # For LocalAI, API key might not be required, but we'll use a placeholder if not provided
                 if not self.api_key:
-                    raise ValueError("OpenAI API key is required when using OpenAI service")
-                client = OpenAI(api_key=self.api_key)
+                    if self.translator_service == "localai":
+                        # LocalAI often doesn't require API key, use placeholder
+                        self.api_key = "not-needed"
+                    else:
+                        raise ValueError("API key is required when using OpenAI service")
+                
+                # Configure client - use base_url if provided (for LocalAI or custom endpoints)
+                if self.base_url:
+                    client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+                else:
+                    client = OpenAI(api_key=self.api_key)
+                
+                # Use appropriate model name
+                # LocalAI typically uses model names like "gpt-4" or custom model names
+                # Check if model_name attribute exists (set via command line)
+                model_name = getattr(self, 'model_name', None)
+                if not model_name:
+                    if self.translator_service == "openai":
+                        model_name = "gpt-3.5-turbo"
+                    else:
+                        # For LocalAI, try to use a common model name or default
+                        model_name = "gpt-3.5-turbo"  # Common default for LocalAI
+                
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model=model_name,
                     messages=[
                         {"role": "system", "content": "You are a professional translator. Translate the following text to Traditional Chinese, maintaining technical accuracy and formatting."},
                         {"role": "user", "content": text}
@@ -394,13 +419,23 @@ def main():
     )
     parser.add_argument(
         "--service",
-        choices=["google", "openai"],
+        choices=["google", "openai", "localai"],
         default="google",
         help="Translation service to use (default: google)"
     )
     parser.add_argument(
         "--api-key",
-        help="API key for OpenAI (if using OpenAI service)",
+        help="API key for OpenAI/LocalAI (if using OpenAI/LocalAI service)",
+        default=None
+    )
+    parser.add_argument(
+        "--base-url",
+        help="Base URL for LocalAI or custom OpenAI-compatible API endpoint (e.g., http://localhost:8080/v1)",
+        default=None
+    )
+    parser.add_argument(
+        "--model",
+        help="Model name to use (for LocalAI/OpenAI, e.g., 'mistral-7b-instruct', 'gpt-3.5-turbo')",
         default=None
     )
     parser.add_argument(
@@ -427,8 +462,13 @@ def main():
     translator = PDFTranslator(
         translator_service=args.service,
         api_key=args.api_key,
-        auto_detect_language=not args.no_auto_detect
+        auto_detect_language=not args.no_auto_detect,
+        base_url=args.base_url
     )
+    
+    # Set model name if provided
+    if args.model:
+        translator.model_name = args.model
     
     # Translate PDF
     try:
