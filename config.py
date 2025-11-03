@@ -10,7 +10,7 @@ TRANSLATION_SERVICE = "freegpt"
 # API key (required for freegpt/openai/localai services)
 # For FreeGPT: Get free API key from: https://github.com/popjane/free_chatgpt_api
 # For OpenAI: Get API key from: https://platform.openai.com/api-keys
-OPENAI_API_KEY = "sk-QoXRGFKPtYlcZ5sD440fC2B6A06d4dD4AfD9E6A5E378DdD1"
+OPENAI_API_KEY = ""
 
 # Base URL (for freegpt/localai services)
 # For FreeGPT: https://free.v36.cm/v1/
