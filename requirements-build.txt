@@ -1,0 +1,14 @@
+# Requirements for building Windows executable
+# Install these before building: pip install -r requirements-build.txt
+
+pyinstaller>=5.13.0
+
+# Base requirements (should already be installed)
+PyMuPDF>=1.23.0
+deep-translator>=1.11.0
+langdetect>=1.0.9
+python-dotenv>=1.0.0
+pillow>=10.0.0
+requests>=2.31.0
+PySide6>=6.5.0
+

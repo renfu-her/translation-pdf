@@ -4,13 +4,16 @@
 
 ## 功能特點
 
+- ✅ **圖形化界面 (GUI)**：使用 PySide6 提供現代化的圖形界面
+- ✅ **命令行界面 (CLI)**：支援命令行操作，適合自動化腳本
 - ✅ 保留原始 PDF 格式（字體、大小、顏色、佈局）
 - ✅ **自動檢測原始語言**：智能識別 PDF 中的文字語系（英文、日文、法文等）
 - ✅ 自動翻譯為繁體中文
-- ✅ 支援 Google Translate 和 OpenAI API
+- ✅ 支援 Google Translate、OpenAI API 和 LocalAI
 - ✅ 翻譯緩存機制，避免重複翻譯
 - ✅ 保持圖片和圖形不變
 - ✅ 智能識別中文內容，跳過已翻譯的文本
+- ✅ 實時進度顯示
 
 ## 安裝依賴
 
@@ -32,7 +35,28 @@ pip install openai
 
 ## 使用方法
 
-### 基本使用
+### 圖形化界面 (GUI) - 推薦
+
+最簡單的方式是使用圖形界面：
+
+```bash
+# 啟動 GUI（默認）
+python main.py
+
+# 或明確指定 GUI 模式
+python main.py --gui
+```
+
+GUI 界面提供：
+- 📁 文件瀏覽器選擇輸入/輸出文件
+- ⚙️ 翻譯服務選擇（Google Translate / OpenAI / LocalAI）
+- 🔑 API 密鑰設置
+- 📊 實時進度條和狀態顯示
+- ✅ 自動生成輸出文件名
+
+### 命令行界面 (CLI)
+
+#### 基本使用
 
 ```bash
 python pdf_translator.py input.pdf
@@ -40,25 +64,66 @@ python pdf_translator.py input.pdf
 
 這會自動生成 `input_zh-TW.pdf` 文件。
 
-### 指定輸出文件名
+#### 指定輸出文件名
 
 ```bash
 python pdf_translator.py input.pdf -o output.pdf
 ```
 
-### 使用 OpenAI API（需要 API key）
+#### 使用 OpenAI API（需要 API key）
 
 ```bash
 python pdf_translator.py input.pdf --service openai --api-key YOUR_API_KEY
 ```
 
-### 禁用自動語言檢測
+#### 使用 LocalAI
+
+```bash
+python pdf_translator.py input.pdf --service localai --base-url http://localhost:8080/v1 --model mistral-7b-instruct
+```
+
+#### 禁用自動語言檢測
 
 如果您想禁用自動語言檢測（使用 Google Translate 的自動檢測模式）：
 
 ```bash
 python pdf_translator.py input.pdf --no-auto-detect
 ```
+
+## 打包成 Windows 可执行文件 (EXE)
+
+如果您想将程序打包成独立的 Windows 可执行文件（.exe），可以使用 PyInstaller。
+
+### 快速打包（推荐）
+
+**方法一：使用批处理脚本（Windows）**
+
+```bash
+# 双击运行或在命令行执行
+build_exe.bat
+```
+
+**方法二：使用 Python 脚本**
+
+```bash
+python build_exe.py
+```
+
+### 手动打包
+
+1. 安装 PyInstaller：
+```bash
+pip install pyinstaller
+```
+
+2. 执行打包命令：
+```bash
+pyinstaller --name="PDFTranslator" --windowed --onefile --hidden-import=PySide6.QtCore --hidden-import=PySide6.QtGui --hidden-import=PySide6.QtWidgets --hidden-import=pdf_translator --hidden-import=deep_translator --hidden-import=langdetect --hidden-import=fitz --collect-all=PySide6 main.py
+```
+
+打包完成后，可执行文件位于 `dist\PDFTranslator.exe`
+
+**详细说明请查看**: [BUILD_EXE.md](BUILD_EXE.md)
 
 ## 配置選項
 
@@ -92,6 +157,7 @@ python pdf_translator.py activa_220_230_240_EN.pdf
 ## 技術實現
 
 - **PyMuPDF (fitz)**: 用於 PDF 操作和文本提取
+- **PySide6**: 用於圖形化界面（基於 Qt，LGPL 許可證）
 - **deep-translator**: 用於 Google Translate API（無 httpx 衝突問題）
 - **langdetect**: 用於自動檢測文本語言
 - **OpenAI API**: 用於高質量翻譯（可選）
@@ -111,9 +177,32 @@ python pdf_translator.py activa_220_230_240_EN.pdf
 - 確保系統支援繁體中文字體
 - 檢查輸出 PDF 的編碼設置
 
+### 問題：GUI 無法啟動
+- 確保已安裝 PySide6：`pip install PySide6`
+- 如果安裝失敗，嘗試：`pip install --upgrade pip` 然後重新安裝
+- 在 Linux 上可能需要安裝額外的系統依賴：
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install libxcb-xinerama0 libxcb-cursor0
+  
+  # Fedora
+  sudo dnf install libxcb xcb-util-cursor
+  ```
+- 如果 GUI 無法啟動，可以使用命令行模式：`python pdf_translator.py input.pdf`
+
 ## 版本更新記錄
 
-### v1.2.0 (最新)
+### v1.3.0 (最新)
+- ✅ **新增圖形化界面 (GUI)**：使用 PySide6 提供現代化的圖形界面
+  - 文件瀏覽器選擇輸入/輸出文件
+  - 翻譯服務選擇（Google Translate / OpenAI / LocalAI）
+  - API 密鑰和模型設置
+  - 實時進度條和狀態顯示
+  - 支援取消翻譯操作
+- ✅ 新增 `main.py` 啟動器，支援 GUI 和 CLI 模式切換
+- ✅ 改進用戶體驗和錯誤處理
+
+### v1.2.0
 - ✅ **新增自動語言檢測功能**：自動識別 PDF 中的文字語系
   - 支援多種語言（英文、日文、法文、德文、西班牙文等）
   - 智能跳過已為中文的內容
